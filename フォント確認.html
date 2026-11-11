@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フォント比較ツール</title>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<style>
+  body {
+    font-family: sans-serif;
+    font-weight: normal;
+    padding: 20px;
+    background: #f7f7f7;
+    padding-bottom: 50px; /* 下部に少し余裕を持たせる */
+  }
+  label {
+    font-size: 16px;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+  input[type="file"],
+  input[type="range"] {
+    display: block;
+    margin-bottom: 20px;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  textarea {
+    display: block;
+    margin-bottom: 20px;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    height: 80px;
+    padding: 8px;
+    resize: vertical;
+  }
+  
+  /* ボタンエリアのスタイル調整 */
+  .action-area {
+    margin-top: 30px;    /* 上（プレビュー部）との間隔 */
+    margin-bottom: 10px; /* 下（説明文）との間隔 */
+    text-align: center;  /* 中央揃えで見やすく */
+  }
+  
+  button.btn-main {
+    background-color: #28a745;
+    color: white;
+    padding: 12px 30px; /* 少し大きくして押しやすく */
+    border-radius: 5px;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    font-weight: bold;
+    transition: background-color 0.2s;
+  }
+  button.btn-main:hover {
+    background-color: #218838;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+  button.btn-main:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* 出力エリア */
+  #outputArea {
+    margin-top: 20px;
+    padding: 10px; 
+  }
+
+  .font-block {
+    background: #fff;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+  }
+  .font-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+  }
+  .font-name {
+    font-size: 0.9em;
+    color: #555;
+    font-weight: bold;
+  }
+  .font-controls {
+    display: flex;
+    gap: 10px;
+  }
+  .font-sample {
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  
+  /* 個別操作ボタン */
+  .mini-btn {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+  }
+  .btn-remove { color: #c00; }
+  .btn-save { color: #007bff; }
+  
+  #note {
+    font-size: 14px;
+    color: #555;
+    margin-top: 20px;
+    text-align: center; /* 説明文も中央寄せに（お好みで左寄せにしてもOK） */
+  }
+</style>
+</head>
+<body>
+
+<p>
+  <input id="fontUpload" accept=".ttf,.otf,.ttc" multiple="multiple" type="file" />
+  <textarea id="inputText" placeholder="あいうえおアイウエオ安以宇衣於ABCabc123">あいうえおアイウエオ安以宇衣於ABCabc123</textarea>
+</p>
+<p>
+  <label>フォントサイズ: <span id="fontSizeLabel">80</span>px</label> 
+  <input id="fontSizeSlider" max="128" min="16" type="range" value="80" />
+</p>
+
+<div id="outputArea"></div>
+
+<div class="action-area">
+  <button id="saveAllBtn" class="btn-main" style="display:none;">一覧を画像として保存</button>
+</div>
+
+<p id="note">アップロードした複数のフォントをお好きな文字列で比較、保存できます。<br />
+<a href="https://yattyanntyo-16.hatenablog.com/entry/2025/08/01/163225?_gl=1*1nlp788*_gcl_au*Mzk4NjIyODQ3LjE3NTAzMTY4NTE." target="_blank" rel="noopener noreferrer">フォントプレビューサイトもあります｡</a><br />
+ローカル処理なのでフォントがサーバーにアップロードされることはありません｡</p>
+
+<script>
+  const fontUpload = document.getElementById('fontUpload');
+  const inputText = document.getElementById('inputText');
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  const fontSizeLabel = document.getElementById('fontSizeLabel');
+  const outputArea = document.getElementById('outputArea');
+  const saveAllBtn = document.getElementById('saveAllBtn');
+  let fontsData = [];
+
+  inputText.addEventListener('input', updateSamples);
+
+  fontSizeSlider.addEventListener('input', () => {
+    fontSizeLabel.textContent = fontSizeSlider.value;
+    updateSamples();
+  });
+
+  // 一覧保存ボタンの処理
+  saveAllBtn.addEventListener('click', () => {
+    if (fontsData.length === 0) return;
+
+    const originalText = saveAllBtn.textContent;
+    saveAllBtn.textContent = "画像生成中...";
+    saveAllBtn.disabled = true;
+
+    // outputArea 全体をキャプチャ
+    html2canvas(outputArea, {
+      ignoreElements: (el) => el.classList.contains('no-capture'),
+      backgroundColor: '#f7f7f7', 
+      scale: 2
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'font_compare_list.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      saveAllBtn.textContent = originalText;
+      saveAllBtn.disabled = false;
+    }).catch(err => {
+      console.error(err);
+      alert("画像の生成に失敗しました");
+      saveAllBtn.textContent = originalText;
+      saveAllBtn.disabled = false;
+    });
+  });
+
+  fontUpload.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const fontName = file.name.replace(/\.[^/.]+$/, "");
+      const fontData = await file.arrayBuffer();
+      const fontFace = new FontFace(fontName, fontData);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+
+      fontsData.push({ name: fontName, cssName: fontName });
+    }
+    updateSamples();
+  });
+
+  function updateSamples() {
+    outputArea.innerHTML = "";
+    const text = inputText.value;
+    const size = fontSizeSlider.value + "px";
+
+    // フォントがある場合のみボタンを表示
+    if (fontsData.length > 0) {
+      saveAllBtn.style.display = "inline-block";
+    } else {
+      saveAllBtn.style.display = "none";
+    }
+
+    fontsData.forEach((font, index) => {
+      const block = document.createElement('div');
+      block.className = 'font-block';
+
+      const header = document.createElement('div');
+      header.className = 'font-header';
+
+      const nameElem = document.createElement('div');
+      nameElem.className = 'font-name';
+      nameElem.textContent = font.name;
+
+      const controls = document.createElement('div');
+      controls.className = 'font-controls';
+
+      // 個別保存ボタン
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = "保存";
+      saveBtn.className = 'mini-btn btn-save no-capture';
+      saveBtn.title = "この画像だけ保存";
+      saveBtn.addEventListener('click', () => {
+        saveBlockAsImage(block, font.name);
+      });
+
+      // 削除ボタン
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = "×";
+      removeBtn.className = 'mini-btn btn-remove no-capture';
+      removeBtn.title = "削除";
+      removeBtn.addEventListener('click', () => {
+        fontsData.splice(index, 1);
+        updateSamples();
+      });
+
+      controls.appendChild(saveBtn);
+      controls.appendChild(removeBtn);
+
+      header.appendChild(nameElem);
+      header.appendChild(controls);
+
+      const sampleElem = document.createElement('div');
+      sampleElem.className = 'font-sample';
+      sampleElem.style.fontFamily = `"${font.cssName}"`;
+      sampleElem.style.fontSize = size;
+      sampleElem.textContent = text;
+
+      block.appendChild(header);
+      block.appendChild(sampleElem);
+      outputArea.appendChild(block);
+    });
+  }
+
+  function saveBlockAsImage(element, fileName) {
+    const safeName = fileName.replace(/[\\/:*?"<>|]/g, "_");
+    html2canvas(element, {
+      ignoreElements: (el) => el.classList.contains('no-capture'),
+      backgroundColor: '#ffffff',
+      scale: 2
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `${safeName}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+</script>
+</body>
+</html>
