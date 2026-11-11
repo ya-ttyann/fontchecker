@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フォントチェッカー</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px; padding-bottom: 50px; background: #f7f7f7; color: #222; font-family: sans-serif; }
+  .panel { width: calc(100% - 32px); max-width: 1600px; margin: 0 auto 18px; padding: 16px; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); overflow: visible; }
+  .toolbar { display: flex; flex-wrap: nowrap; gap: 10px; align-items: stretch; width: 100%; margin-bottom: 12px; white-space: nowrap; }
+  button, select { height: 44px; padding: 8px 14px; border: 1px solid #b8c0c8; border-radius: 7px; background: #fff; font-size: 15px; cursor: pointer; }
+  button:hover, select:hover { background: #f1f5f9; }
+  .primary { border-color: #16833b; background: #28a745; color: #fff; font-weight: bold; }
+  .primary:hover { background: #218838; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  #fontUpload { display: none; }
+  .upload-label { display: flex; flex: 0 0 148px; height: 44px; padding: 5px 12px; border: 1px solid #16833b; border-radius: 7px; align-items: center; justify-content: center; flex-direction: column; line-height: 1.15; cursor: pointer; }
+  .upload-label-main { display: block; font-size: 15px; font-weight: bold; }
+  .upload-note { display: block; margin-top: 2px; font-size: 10px; font-weight: normal; letter-spacing: .02em; opacity: .9; }
+  .preset-label { display: flex; flex: 0 0 auto; align-items: center; }
+  #presetSelect { flex: 1 1 auto; min-width: 180px; max-width: none; text-overflow: ellipsis; }
+  #toggleNamesBtn, #toggleWritingModeBtn, #clearBtn { flex: 0 0 auto; }
+  #toggleWritingModeBtn { min-width: 52px; font-weight: normal; }
+  #dropZone { padding: 24px 14px; border: 2px dashed #8a99a8; border-radius: 9px; background: #f8fbff; text-align: center; cursor: pointer; transition: .15s; }
+  #dropZone.dragover { border-color: #1473e6; background: #eaf4ff; transform: scale(1.005); }
+  body.page-dragover::after { content: "フォントをドロップして読み込み"; position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; color: #075cab; background: rgba(225,241,255,.92); border: 6px dashed #1473e6; font-size: clamp(24px,4vw,52px); font-weight: bold; pointer-events: none; }
+  #dropZone strong { color: #1465b8; }
+  #dropStatus { min-height: 1.4em; margin-top: 8px; color: #555; font-size: 14px; }
+  label { font-size: 15px; }
+  textarea { display: block; width: 100%; min-height: 95px; margin: 10px 0 16px; padding: 10px; border: 1px solid #aaa; border-radius: 6px; font-size: 16px; resize: vertical; }
+  input[type="range"] { vertical-align: middle; }
+  .row { display: flex; width: 100%; gap: 14px; align-items: center; }
+  .size-label { flex: 0 0 auto; }
+  .row input[type="range"] { flex: 1 1 auto; width: auto; margin: 0; }
+  #outputArea { width: calc(100% - 32px); max-width: 1600px; margin: 20px auto 0; padding: 0; }
+  #outputArea.vertical-layout { display: flex; flex-flow: row-reverse nowrap; gap: 10px; align-items: flex-start; justify-content: flex-start; overflow-x: auto; overflow-y: visible; padding-bottom: 10px; }
+  #outputArea.vertical-layout .font-block { flex: 0 0 auto; width: auto; min-width: 0; max-width: none; margin-bottom: 0; overflow: visible; direction: ltr; }
+  #outputArea.vertical-layout .font-sample.vertical { box-sizing: content-box; width: var(--vertical-text-width); height: var(--vertical-text-height); min-width: 0; min-height: 0; max-width: none; overflow: visible; direction: ltr; }
+  #outputArea.vertical-layout .font-header { margin-bottom: 6px; }
+  #outputArea.vertical-layout .font-block.name-hidden { padding: 8px 36px 8px 8px; }
+  .font-block { position: relative; margin-bottom: 8px; padding: 8px 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.1); }
+  .font-header { display: flex; justify-content: space-between; align-items: center; min-height: 30px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+  .font-header.name-hidden { display: none; }
+  .font-block.name-hidden { padding: 4px 40px 4px 8px; }
+  .font-block.name-hidden .font-sample { line-height: 1.12; }
+  .font-block.name-hidden .floating-controls { display: flex; }
+  .floating-controls { display: none; position: absolute; right: 4px; top: 4px; z-index: 2; gap: 2px; background: rgba(255,255,255,.92); border-radius: 5px; }
+  .floating-controls .mini-btn { padding: 1px 4px; min-height: 24px; font-size: 12px; }
+  .font-name { color: #555; font-size: .9em; font-weight: bold; overflow-wrap: anywhere; }
+  .font-controls { display: flex; gap: 6px; flex: 0 0 auto; }
+  .mini-btn { min-height: 30px; padding: 3px 8px; border: 0; background: transparent; font-size: 14px; }
+  .btn-remove { color: #b00020; font-size: 20px; line-height: 1; }
+  .btn-save { color: #0666bb; }
+  .font-sample { line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .font-sample.vertical { writing-mode: vertical-rl; text-orientation: mixed; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
+  .action-area { width: calc(100% - 32px); max-width: 1600px; margin: 28px auto 10px; text-align: center; }
+  #note { max-width: 1200px; margin: 18px auto; color: #555; text-align: center; font-size: 14px; line-height: 1.7; }
+  .subnote { color: #68737d; font-size: 13px; }
+
+  .preset-wrap { position: relative; flex: 1 1 auto; min-width: 180px; }
+  .preset-button { width: 100%; height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 34px; position: relative; }
+  .preset-button::after { content: "▾"; position: absolute; right: 13px; }
+  .preset-menu { display: none; position: fixed; left: 0; top: 0; width: 320px; z-index: 10000; border: 1px solid #9da7b1; border-radius: 7px; background: #fff; box-shadow: 0 5px 16px rgba(0,0,0,.18); overflow: hidden; }
+  .preset-menu.open { display: block; }
+  .preset-option { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 0; height: auto; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #fff; }
+  .preset-option:hover, .preset-option:focus { background: #e7f1ff; }
+</style>
+</head>
+<body>
+
+<section class="panel">
+  <div class="toolbar">
+    <label for="fontUpload" class="primary upload-label"><span class="upload-label-main">フォントを選択</span><span class="upload-note">ドラッグ＆ドロップも可</span></label>
+    <input id="fontUpload" accept=".ttf,.otf,.ttc,.woff,.woff2" multiple type="file">
+    <button id="toggleNamesBtn" type="button" aria-pressed="false">フォント名を非表示</button>
+    <button id="toggleWritingModeBtn" type="button" aria-pressed="false" title="横書き・縦書きを切り替え">横</button>
+    <span class="preset-label">例文：</span>
+    <div class="preset-wrap">
+      <button id="presetButton" class="preset-button" type="button" aria-expanded="false">自由入力</button>
+      <div id="presetMenu" class="preset-menu">
+        <button type="button" class="preset-option" data-value="">自由入力</button>
+        <button type="button" class="preset-option" data-value="あいうえおアイウエオ安以宇衣於ABCabc123">あいうえおアイウエオ安以宇衣於ABCabc123</button>
+        <button type="button" class="preset-option" data-value="あなふのアタユシ国東愛永酬機闘室書調風辺">あなふのアタユシ国東愛永酬機闘室書調風辺</button>
+        <button type="button" class="preset-option" data-value="あのイーハトーヴォのすきとおった風、夏でも底に冷たさをもつ青いそら、うつくしい森で飾られたモリーオ市、郊外のぎらぎらひかる草の波。">あのイーハトーヴォのすきとおった風、夏でも底に冷たさをもつ青いそら、うつくしい森で飾られたモリーオ市、郊外のぎらぎらひかる草の波。</button>
+        <button type="button" class="preset-option" data-value="山路を登りながら、こう考えた。智に働けば角が立つ。情に棹させば流される。意地を通せば窮屈だ。">山路を登りながら、こう考えた。智に働けば角が立つ。情に棹させば流される。意地を通せば窮屈だ。</button>
+      </div>
+    </div>
+    <button id="clearBtn" type="button">すべて削除</button>
+  </div>
+  <textarea id="inputText" placeholder="比較したい文字を自由に入力してください">あいうえおアイウエオ安以宇衣於ABCabc123</textarea>
+  <div class="row">
+    <label class="size-label">フォントサイズ：<strong><span id="fontSizeLabel">80</span>px</strong></label>
+    <input id="fontSizeSlider" max="300" min="12" type="range" value="80">
+  </div>
+</section>
+
+<div id="outputArea"></div>
+<div class="action-area"><button id="saveAllBtn" class="primary" style="display:none;">一覧を画像として保存</button></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fontUpload = $('fontUpload'), inputText = $('inputText');
+const presetButton = $('presetButton'), presetMenu = $('presetMenu');
+const fontSizeSlider = $('fontSizeSlider'), fontSizeLabel = $('fontSizeLabel');
+const outputArea = $('outputArea'), saveAllBtn = $('saveAllBtn');
+const toggleNamesBtn = $('toggleNamesBtn'), toggleWritingModeBtn = $('toggleWritingModeBtn'), clearBtn = $('clearBtn');
+let fontsData = [], namesHidden = false, writingMode = 'horizontal', fontSerial = 0;
+const loadedFileHashes = new Set();
+const FONT_UPLOAD_LOG_KEY = 'fontCompareUploadLogV1';
+const FONT_UPLOAD_LOG_LIMIT = 5000;
+function readUploadLog() {
+  try { const value = JSON.parse(localStorage.getItem(FONT_UPLOAD_LOG_KEY) || '[]'); return Array.isArray(value) ? value : []; }
+  catch { return []; }
+}
+function appendUploadLog(entries) {
+  try {
+    const log = readUploadLog();
+    log.push(...entries);
+    if (log.length > FONT_UPLOAD_LOG_LIMIT) log.splice(0, log.length - FONT_UPLOAD_LOG_LIMIT);
+    localStorage.setItem(FONT_UPLOAD_LOG_KEY, JSON.stringify(log));
+  } catch (e) { console.warn('フォント読み込みログを保存できませんでした。', e); }
+}
+function makeUploadLogEntry(file, metadataName, result, errorMessage = '') {
+  return { timestamp: new Date().toISOString(), metadataName, originalFileName: file.name, extension: (file.name.split('.').pop() || '').toLowerCase(), sizeBytes: file.size, mimeType: file.type || '', fileLastModified: file.lastModified ? new Date(file.lastModified).toISOString() : '', result, errorMessage };
+}
+window.fontUploadLog = Object.freeze({
+  get: () => readUploadLog(),
+  clear: () => localStorage.removeItem(FONT_UPLOAD_LOG_KEY),
+  download: () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(readUploadLog(), null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = `font-upload-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+});
+
+inputText.addEventListener('input', () => { presetButton.textContent = '自由入力'; updateSamples(); });
+function positionPresetMenu() {
+  const rect = presetButton.getBoundingClientRect();
+  const gap = 0;
+  presetMenu.style.left = `${Math.round(rect.left)}px`;
+  presetMenu.style.top = `${Math.round(rect.bottom - 1)}px`;
+  presetMenu.style.width = `${Math.round(rect.width)}px`;
+  const availableBelow = window.innerHeight - rect.bottom - 10;
+  const availableAbove = rect.top - 10;
+  const naturalMax = 280;
+  if (availableBelow >= 150 || availableBelow >= availableAbove) {
+    presetMenu.style.maxHeight = `${Math.max(120, Math.min(naturalMax, availableBelow))}px`;
+  } else {
+    const height = Math.max(120, Math.min(naturalMax, availableAbove));
+    presetMenu.style.maxHeight = `${height}px`;
+    presetMenu.style.top = `${Math.round(rect.top - height + 1)}px`;
+  }
+  presetMenu.style.overflowY = 'auto';
+}
+presetButton.addEventListener('click', () => {
+  const willOpen = !presetMenu.classList.contains('open');
+  if (willOpen) positionPresetMenu();
+  presetMenu.classList.toggle('open', willOpen);
+  presetButton.setAttribute('aria-expanded', String(willOpen));
+});
+window.addEventListener('resize', () => { if (presetMenu.classList.contains('open')) positionPresetMenu(); });
+window.addEventListener('resize', () => { if (fontsData.length) updateSamples(); });
+window.addEventListener('scroll', () => { if (presetMenu.classList.contains('open')) positionPresetMenu(); }, true);
+presetMenu.addEventListener('click', e => { const option = e.target.closest('.preset-option'); if (!option) return; presetButton.textContent = option.textContent; presetMenu.classList.remove('open'); presetButton.setAttribute('aria-expanded', 'false'); if (option.dataset.value) inputText.value = option.dataset.value; updateSamples(); });
+document.addEventListener('click', e => { if (!e.target.closest('.preset-wrap')) { presetMenu.classList.remove('open'); presetButton.setAttribute('aria-expanded', 'false'); } });
+fontSizeSlider.addEventListener('input', () => { fontSizeLabel.textContent = fontSizeSlider.value; updateSamples(); });
+fontUpload.addEventListener('change', async e => { await loadFiles([...e.target.files]); fontUpload.value = ''; });
+let dragDepth = 0;
+document.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('page-dragover'); });
+document.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+document.addEventListener('dragleave', e => { e.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('page-dragover'); });
+document.addEventListener('drop', async e => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('page-dragover');
+  await loadFiles([...e.dataTransfer.files]);
+});
+
+toggleNamesBtn.addEventListener('click', () => {
+  namesHidden = !namesHidden;
+  toggleNamesBtn.textContent = namesHidden ? 'フォント名を表示' : 'フォント名を非表示';
+  toggleNamesBtn.setAttribute('aria-pressed', String(namesHidden));
+  updateSamples();
+});
+toggleWritingModeBtn.addEventListener('click', () => {
+  writingMode = writingMode === 'horizontal' ? 'vertical' : 'horizontal';
+  const isVertical = writingMode === 'vertical';
+  toggleWritingModeBtn.textContent = isVertical ? '縦' : '横';
+  toggleWritingModeBtn.setAttribute('aria-pressed', String(isVertical));
+  toggleWritingModeBtn.title = isVertical ? '現在は縦書き。クリックで横書きに変更' : '現在は横書き。クリックで縦書きに変更';
+  updateSamples();
+});
+clearBtn.addEventListener('click', () => { fontsData.forEach(releaseFont); fontsData = []; loadedFileHashes.clear(); updateSamples(); });
+
+
+async function sha256Hex(buffer) {
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  return [...new Uint8Array(digest)].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function base64FromBuffer(buffer) {
+  const bytes = new Uint8Array(buffer); let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+function checksum32(bytes) {
+  let sum = 0; const len = (bytes.length + 3) & ~3;
+  for (let i = 0; i < len; i += 4) sum = (sum + (((bytes[i]||0)<<24)>>>0) + ((bytes[i+1]||0)<<16) + ((bytes[i+2]||0)<<8) + (bytes[i+3]||0)) >>> 0;
+  return sum >>> 0;
+}
+function extractTTCFaces(buffer) {
+  const v = new DataView(buffer);
+  if (readTag(v, 0) !== 'ttcf') return [buffer];
+  const count = v.getUint32(8, false), results = [];
+  for (let faceIndex = 0; faceIndex < count; faceIndex++) {
+    const base = v.getUint32(12 + faceIndex * 4, false);
+    const numTables = v.getUint16(base + 4, false);
+    const headerSize = 12 + numTables * 16;
+    let cursor = headerSize; const tables = [];
+    for (let i = 0; i < numTables; i++) {
+      const p = base + 12 + i * 16, length = v.getUint32(p + 12, false), srcOffset = v.getUint32(p + 8, false);
+      cursor = (cursor + 3) & ~3;
+      tables.push({ tag: readTag(v,p), checksum:v.getUint32(p+4,false), srcOffset, length, dstOffset:cursor });
+      cursor += (length + 3) & ~3;
+    }
+    const out = new ArrayBuffer(cursor), ov = new DataView(out), ob = new Uint8Array(out), src = new Uint8Array(buffer);
+    for (let i=0;i<12;i++) ov.setUint8(i,v.getUint8(base+i));
+    tables.forEach((t,i)=>{
+      const p=12+i*16; for(let j=0;j<4;j++) ov.setUint8(p+j,t.tag.charCodeAt(j));
+      ov.setUint32(p+4,t.checksum,false); ov.setUint32(p+8,t.dstOffset,false); ov.setUint32(p+12,t.length,false);
+      ob.set(src.subarray(t.srcOffset,t.srcOffset+t.length),t.dstOffset);
+    });
+    const head=tables.find(t=>t.tag==='head');
+    if(head && head.length>=12){ ov.setUint32(head.dstOffset+8,0,false); ov.setUint32(head.dstOffset+8,(0xB1B0AFBA-checksum32(ob))>>>0,false); }
+    results.push(out);
+  }
+  return results;
+}
+function releaseFont(font) {
+  (font.faces || []).forEach(face => document.fonts.delete(face));
+  if (font.sourceHash && !fontsData.some(f => f !== font && f.sourceHash === font.sourceHash)) loadedFileHashes.delete(font.sourceHash);
+}
+function removeFontAt(index) {
+  const font = fontsData[index]; if (!font) return;
+  fontsData.splice(index, 1); releaseFont(font); updateSamples();
+}
+async function loadFiles(files) {
+  const accepted = files.filter(f => /\.(ttf|otf|ttc|woff|woff2)$/i.test(f.name));
+  if (!accepted.length) return;
+  const failed = [], duplicates = [], logEntries = [];
+  for (const file of accepted) {
+    try {
+      const originalBuffer = await file.arrayBuffer(), sourceHash = await sha256Hex(originalBuffer);
+      if (loadedFileHashes.has(sourceHash)) { duplicates.push(file.name); continue; }
+      const faceBuffers = extractTTCFaces(originalBuffer);
+      const staged = [];
+      for (let faceIndex=0; faceIndex<faceBuffers.length; faceIndex++) {
+        const buffer=faceBuffers[faceIndex];
+        const names=getFontMetadataNames(buffer);
+        const metadataName=names.displayName || file.name.replace(/\.[^.]+$/,'') + (faceBuffers.length>1?` ${faceIndex+1}`:'');
+        const cssName=`LocalFont_${Date.now()}_${fontSerial++}`;
+        const face=new FontFace(cssName,buffer); await face.load(); document.fonts.add(face);
+        const mime=/\.woff2$/i.test(file.name)?'font/woff2':/\.woff$/i.test(file.name)?'font/woff':'font/ttf';
+        staged.push({name:metadataName,cssName,originalName:file.name,faceIndex,faceCount:faceBuffers.length,faces:[face],sourceHash,fontDataUrl:`data:${mime};base64,${base64FromBuffer(buffer)}`});
+      }
+      fontsData.push(...staged); loadedFileHashes.add(sourceHash);
+      logEntries.push(makeUploadLogEntry(file, staged.map(x=>x.name).join(' / '), 'loaded'));
+    } catch(e) { console.error(file.name,e); failed.push(file.name); logEntries.push(makeUploadLogEntry(file,file.name,'failed',String(e?.message||e))); }
+  }
+  appendUploadLog(logEntries); updateSamples();
+  if (duplicates.length) alert(`既に読み込み済みのため追加しなかったファイル：${duplicates.join('、')}`);
+  if (failed.length) alert(`読み込めなかったファイル：${failed.join('、')}`);
+}
+
+// SFNTのnameテーブルから日本語名を優先して取得。TTF/OTFに加え、TTCの先頭フォントにも対応。
+function getFontMetadataNames(arrayBuffer) {
+  try {
+    const v=new DataView(arrayBuffer), base=0, numTables=v.getUint16(base+4,false); let nameOffset=-1;
+    for(let i=0;i<numTables;i++){const p=base+12+i*16;if(readTag(v,p)==='name'){nameOffset=v.getUint32(p+8,false);break;}}
+    if(nameOffset<0)return {displayName:null};
+    const count=v.getUint16(nameOffset+2,false), stringOffset=v.getUint16(nameOffset+4,false), rows=[];
+    for(let i=0;i<count;i++){const p=nameOffset+6+i*12,platform=v.getUint16(p,false),encoding=v.getUint16(p+2,false),language=v.getUint16(p+4,false),nameId=v.getUint16(p+6,false),length=v.getUint16(p+8,false),offset=v.getUint16(p+10,false);if(![1,2,4,6,16,17].includes(nameId))continue;const start=nameOffset+stringOffset+offset;if(start+length>v.byteLength)continue;const text=decodeName(v,start,length,platform,encoding).replace(/\u0000/g,'').trim();if(text)rows.push({nameId,text,score:(language===0x0411?20:language===0?8:0)+(platform===3?5:platform===0?4:0)});}
+    const pick=id=>rows.filter(r=>r.nameId===id).sort((a,b)=>b.score-a.score)[0]?.text||'';
+    const full=pick(4), family=pick(16)||pick(1), subfamily=pick(17)||pick(2);
+    let displayName=full || [family,subfamily].filter(Boolean).join(' ');
+    if(full && subfamily && !full.toLowerCase().includes(subfamily.toLowerCase()) && !/^(regular|normal)$/i.test(subfamily)) displayName=`${full} (${subfamily})`;
+    return {displayName,family,subfamily,full};
+  } catch(e){return {displayName:null};}
+}
+function getFontMetadataName(arrayBuffer){return getFontMetadataNames(arrayBuffer).displayName;}
+function readTag(v, p) { return String.fromCharCode(v.getUint8(p),v.getUint8(p+1),v.getUint8(p+2),v.getUint8(p+3)); }
+function decodeName(v, start, length, platform, encoding) {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset + start, length);
+  if (platform === 0 || platform === 3) {
+    try { return new TextDecoder('utf-16be').decode(bytes); }
+    catch { let s=''; for(let i=0;i+1<bytes.length;i+=2) s += String.fromCharCode((bytes[i]<<8)|bytes[i+1]); return s; }
+  }
+  try { return new TextDecoder('macintosh').decode(bytes); } catch { return new TextDecoder('latin1').decode(bytes); }
+}
+
+function updateSamples() {
+  outputArea.innerHTML = '';
+  outputArea.classList.toggle('vertical-layout', writingMode === 'vertical');
+  saveAllBtn.style.display = fontsData.length ? 'inline-block' : 'none';
+  const text = inputText.value, size = `${fontSizeSlider.value}px`;
+  fontsData.forEach((font, index) => {
+    const block = document.createElement('div'); block.className = `font-block${namesHidden ? ' name-hidden' : ''}`;
+    const header = document.createElement('div'); header.className = `font-header${namesHidden ? ' name-hidden' : ''}`;
+    if (!namesHidden) {
+      const name = document.createElement('div'); name.className = 'font-name';
+      name.textContent = font.name; name.title = `元ファイル：${font.originalName}`; header.appendChild(name);
+    }
+    const controls = document.createElement('div'); controls.className = 'font-controls no-capture';
+    const save = document.createElement('button'); save.className = 'mini-btn btn-save'; save.textContent = '保存'; save.title = 'この見本だけ画像保存';
+    save.addEventListener('click', () => saveBlockAsImage(block, font.name));
+    const remove = document.createElement('button'); remove.className = 'mini-btn btn-remove'; remove.textContent = '×'; remove.title = 'このフォントを一覧から削除';
+    remove.addEventListener('click', () => removeFontAt(index));
+    controls.append(save, remove); header.appendChild(controls);
+    const floating = document.createElement('div'); floating.className = 'floating-controls no-capture';
+    const floatingSave = save.cloneNode(true); floatingSave.textContent = '保存'; floatingSave.addEventListener('click', () => saveBlockAsImage(block, font.name));
+    const floatingRemove = remove.cloneNode(true); floatingRemove.textContent = '×'; floatingRemove.addEventListener('click', () => removeFontAt(index));
+    floating.append(floatingSave, floatingRemove); block.appendChild(floating);
+    const sample = document.createElement('div'); sample.className = `font-sample${writingMode === 'vertical' ? ' vertical' : ''}`; sample.style.fontFamily = `"${font.cssName}"`; sample.style.fontSize = size; sample.textContent = text;
+    block.append(header, sample); outputArea.appendChild(block);
+  });
+  if (writingMode === 'vertical') {
+    const fontPx = Number(fontSizeSlider.value);
+    const lineAdvance = fontPx * 1.4;
+    const glyphAdvance = fontPx * 1.05;
+    const outputTop = outputArea.getBoundingClientRect().top;
+    const textHeight = Math.max(360, window.innerHeight - outputTop - 72);
+    const lines = text.split(/\r?\n/);
+    const totalGlyphs = lines.reduce((sum, line) => sum + Math.max(1, Array.from(line).length), 0);
+    const forcedBreaks = Math.max(0, lines.length - 1);
+    const glyphsPerColumn = Math.max(1, Math.floor(textHeight / glyphAdvance));
+    const columns = Math.max(1, Math.ceil(totalGlyphs / glyphsPerColumn) + forcedBreaks);
+    const textWidth = Math.ceil(columns * lineAdvance);
+    outputArea.style.setProperty('--vertical-text-height', `${textHeight}px`);
+    outputArea.style.setProperty('--vertical-text-width', `${textWidth}px`);
+  } else {
+    outputArea.style.removeProperty('--vertical-text-height');
+    outputArea.style.removeProperty('--vertical-text-width');
+  }
+}
+
+saveAllBtn.addEventListener('click', async () => {
+  if (!fontsData.length) return;
+  await captureAndDownload(outputArea, 'font_compare_list.png', '#f7f7f7', saveAllBtn);
+});
+async function saveBlockAsImage(element, fileName) {
+  const safe = fileName.replace(/[\\/:*?"<>|]/g, '_');
+  await captureAndDownload(element, `${safe}.png`, '#fff');
+}
+function drawVerticalText(ctx,text,x,y,maxHeight,fontSize,lineHeight){
+  const chars=Array.from(text), step=fontSize*lineHeight; let cy=y, cx=x;
+  for(const ch of chars){
+    if(ch==='\n' || cy+step>y+maxHeight){cx-=step;cy=y;if(ch==='\n')continue;}
+    ctx.save();
+    if(/[A-Za-z0-9]/.test(ch)){ctx.translate(cx-fontSize*.15,cy+fontSize*.2);ctx.rotate(Math.PI/2);ctx.fillText(ch,0,0);}else ctx.fillText(ch,cx,cy);
+    ctx.restore(); cy+=step;
+  }
+}
+function paintBlock(ctx,block,rootRect,scale){
+  const r=block.getBoundingClientRect(),x=(r.left-rootRect.left)*scale,y=(r.top-rootRect.top)*scale,w=r.width*scale,h=r.height*scale;
+  ctx.save();ctx.scale(scale,scale);const ux=x/scale,uy=y/scale,uw=w/scale,uh=h/scale;
+  ctx.fillStyle='#fff';ctx.fillRect(ux,uy,uw,uh);ctx.strokeStyle='#e8e8e8';ctx.strokeRect(ux+.5,uy+.5,uw-1,uh-1);
+  const name=block.querySelector('.font-name'); if(name && getComputedStyle(name).display!=='none'){ctx.fillStyle='#555';ctx.font='600 14px Arial,sans-serif';ctx.fillText(name.textContent,ux+12,uy+24);}
+  const sample=block.querySelector('.font-sample'); if(sample){const sr=sample.getBoundingClientRect(),cs=getComputedStyle(sample),fs=parseFloat(cs.fontSize),lh=parseFloat(cs.lineHeight)/fs||1.2;ctx.fillStyle=cs.color;ctx.font=`${cs.fontWeight} ${fs}px "${sample.style.fontFamily}",sans-serif`;ctx.textBaseline='top';
+    if(sample.classList.contains('vertical')) drawVerticalText(ctx,sample.textContent, (sr.right-rootRect.left)/scale*scale-ux+ux-fs, (sr.top-rootRect.top), sr.height,fs,lh);
+    else {let ty=sr.top-rootRect.top;for(const line of sample.textContent.split('\n')){ctx.fillText(line,sr.left-rootRect.left,ty);ty+=fs*lh;}}
+  }
+  ctx.restore();
+}
+async function captureAndDownload(element,fileName,backgroundColor,button){
+  const original=button?.textContent;
+  try{if(button){button.textContent='画像生成中…';button.disabled=true;}await document.fonts.ready;
+    const rect=element.getBoundingClientRect(),scale=2,canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(rect.width*scale));canvas.height=Math.max(1,Math.ceil(rect.height*scale));const ctx=canvas.getContext('2d');ctx.fillStyle=backgroundColor;ctx.fillRect(0,0,canvas.width,canvas.height);
+    const blocks=element.classList.contains('font-block')?[element]:[...element.querySelectorAll('.font-block')];blocks.forEach(b=>paintBlock(ctx,b,rect,scale));
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(v=>v?resolve(v):reject(new Error('PNG変換失敗')),'image/png'));const url=URL.createObjectURL(blob),link=document.createElement('a');link.download=fileName;link.href=url;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){console.error(e);alert('画像の生成に失敗しました。');}finally{if(button){button.textContent=original;button.disabled=false;}}
+}
+</script>
+</body>
+</html>
