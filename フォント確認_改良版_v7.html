@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フォント比較ツール</title>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px; padding-bottom: 50px; background: #f7f7f7; color: #222; font-family: sans-serif; }
+  .panel { width: calc(100% - 32px); max-width: 1600px; margin: 0 auto 18px; padding: 16px; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); overflow: visible; }
+  .toolbar { display: flex; flex-wrap: nowrap; gap: 10px; align-items: stretch; width: 100%; margin-bottom: 12px; white-space: nowrap; }
+  button, select { height: 44px; padding: 8px 14px; border: 1px solid #b8c0c8; border-radius: 7px; background: #fff; font-size: 15px; cursor: pointer; }
+  button:hover, select:hover { background: #f1f5f9; }
+  .primary { border-color: #16833b; background: #28a745; color: #fff; font-weight: bold; }
+  .primary:hover { background: #218838; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  #fontUpload { display: none; }
+  .upload-label { display: flex; flex: 0 0 148px; height: 44px; padding: 5px 12px; border: 1px solid #16833b; border-radius: 7px; align-items: center; justify-content: center; flex-direction: column; line-height: 1.15; cursor: pointer; }
+  .upload-label-main { display: block; font-size: 15px; font-weight: bold; }
+  .upload-note { display: block; margin-top: 2px; font-size: 10px; font-weight: normal; letter-spacing: .02em; opacity: .9; }
+  .preset-label { display: flex; flex: 0 0 auto; align-items: center; }
+  #presetSelect { flex: 1 1 auto; min-width: 180px; max-width: none; text-overflow: ellipsis; }
+  #toggleNamesBtn, #clearBtn { flex: 0 0 auto; }
+  #dropZone { padding: 24px 14px; border: 2px dashed #8a99a8; border-radius: 9px; background: #f8fbff; text-align: center; cursor: pointer; transition: .15s; }
+  #dropZone.dragover { border-color: #1473e6; background: #eaf4ff; transform: scale(1.005); }
+  body.page-dragover::after { content: "フォントをドロップして読み込み"; position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; color: #075cab; background: rgba(225,241,255,.92); border: 6px dashed #1473e6; font-size: clamp(24px,4vw,52px); font-weight: bold; pointer-events: none; }
+  #dropZone strong { color: #1465b8; }
+  #dropStatus { min-height: 1.4em; margin-top: 8px; color: #555; font-size: 14px; }
+  label { font-size: 15px; }
+  textarea { display: block; width: 100%; min-height: 95px; margin: 10px 0 16px; padding: 10px; border: 1px solid #aaa; border-radius: 6px; font-size: 16px; resize: vertical; }
+  input[type="range"] { vertical-align: middle; }
+  .row { display: flex; width: 100%; gap: 14px; align-items: center; }
+  .size-label { flex: 0 0 auto; }
+  .row input[type="range"] { flex: 1 1 auto; width: auto; margin: 0; }
+  #outputArea { width: calc(100% - 32px); max-width: 1600px; margin: 20px auto 0; padding: 10px; }
+  .font-block { position: relative; margin-bottom: 8px; padding: 8px 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.1); }
+  .font-header { display: flex; justify-content: space-between; align-items: center; min-height: 30px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+  .font-header.name-hidden { display: none; }
+  .font-block.name-hidden { padding: 4px 40px 4px 8px; }
+  .font-block.name-hidden .font-sample { line-height: 1.12; }
+  .font-block.name-hidden .floating-controls { display: flex; }
+  .floating-controls { display: none; position: absolute; right: 4px; top: 4px; z-index: 2; gap: 2px; background: rgba(255,255,255,.92); border-radius: 5px; }
+  .floating-controls .mini-btn { padding: 1px 4px; min-height: 24px; font-size: 12px; }
+  .font-name { color: #555; font-size: .9em; font-weight: bold; overflow-wrap: anywhere; }
+  .font-controls { display: flex; gap: 6px; flex: 0 0 auto; }
+  .mini-btn { min-height: 30px; padding: 3px 8px; border: 0; background: transparent; font-size: 14px; }
+  .btn-remove { color: #b00020; font-size: 20px; line-height: 1; }
+  .btn-save { color: #0666bb; }
+  .font-sample { line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .action-area { width: calc(100% - 32px); max-width: 1600px; margin: 28px auto 10px; text-align: center; }
+  #note { max-width: 1200px; margin: 18px auto; color: #555; text-align: center; font-size: 14px; line-height: 1.7; }
+  .subnote { color: #68737d; font-size: 13px; }
+
+  .preset-wrap { position: relative; flex: 1 1 auto; min-width: 180px; }
+  .preset-button { width: 100%; height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 34px; position: relative; }
+  .preset-button::after { content: "▾"; position: absolute; right: 13px; }
+  .preset-menu { display: none; position: fixed; left: 0; top: 0; width: 320px; z-index: 10000; border: 1px solid #9da7b1; border-radius: 7px; background: #fff; box-shadow: 0 5px 16px rgba(0,0,0,.18); overflow: hidden; }
+  .preset-menu.open { display: block; }
+  .preset-option { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 0; height: auto; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #fff; }
+  .preset-option:hover, .preset-option:focus { background: #e7f1ff; }
+</style>
+</head>
+<body>
+
+<section class="panel">
+  <div class="toolbar">
+    <label for="fontUpload" class="primary upload-label"><span class="upload-label-main">フォントを選択</span><span class="upload-note">ドラッグ＆ドロップも可</span></label>
+    <input id="fontUpload" accept=".ttf,.otf,.ttc" multiple type="file">
+    <button id="toggleNamesBtn" type="button" aria-pressed="false">フォント名を非表示</button>
+    <span class="preset-label">例文：</span>
+    <div class="preset-wrap">
+      <button id="presetButton" class="preset-button" type="button" aria-expanded="false">自由入力</button>
+      <div id="presetMenu" class="preset-menu">
+        <button type="button" class="preset-option" data-value="">自由入力</button>
+        <button type="button" class="preset-option" data-value="あいうえおアイウエオ安以宇衣於ABCabc123">あいうえおアイウエオ安以宇衣於ABCabc123</button>
+        <button type="button" class="preset-option" data-value="あなふのアタユシ国東愛永酬機闘室書調風辺">あなふのアタユシ国東愛永酬機闘室書調風辺</button>
+        <button type="button" class="preset-option" data-value="あのイーハトーヴォのすきとおった風、夏でも底に冷たさをもつ青いそら、うつくしい森で飾られたモリーオ市、郊外のぎらぎらひかる草の波。">あのイーハトーヴォのすきとおった風、夏でも底に冷たさをもつ青いそら、うつくしい森で飾られたモリーオ市、郊外のぎらぎらひかる草の波。</button>
+        <button type="button" class="preset-option" data-value="山路を登りながら、こう考えた。智に働けば角が立つ。情に棹させば流される。意地を通せば窮屈だ。">山路を登りながら、こう考えた。智に働けば角が立つ。情に棹させば流される。意地を通せば窮屈だ。</button>
+      </div>
+    </div>
+    <button id="clearBtn" type="button">すべて削除</button>
+  </div>
+  <textarea id="inputText" placeholder="比較したい文字を自由に入力してください">あいうえおアイウエオ安以宇衣於ABCabc123</textarea>
+  <div class="row">
+    <label class="size-label">フォントサイズ：<strong><span id="fontSizeLabel">80</span>px</strong></label>
+    <input id="fontSizeSlider" max="300" min="12" type="range" value="80">
+  </div>
+</section>
+
+<div id="outputArea"></div>
+<div class="action-area"><button id="saveAllBtn" class="primary" style="display:none;">一覧を画像として保存</button></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fontUpload = $('fontUpload'), inputText = $('inputText');
+const presetButton = $('presetButton'), presetMenu = $('presetMenu');
+const fontSizeSlider = $('fontSizeSlider'), fontSizeLabel = $('fontSizeLabel');
+const outputArea = $('outputArea'), saveAllBtn = $('saveAllBtn');
+const toggleNamesBtn = $('toggleNamesBtn'), clearBtn = $('clearBtn');
+let fontsData = [], namesHidden = false, fontSerial = 0;
+
+inputText.addEventListener('input', () => { presetButton.textContent = '自由入力'; updateSamples(); });
+function positionPresetMenu() {
+  const rect = presetButton.getBoundingClientRect();
+  const gap = 0;
+  presetMenu.style.left = `${Math.round(rect.left)}px`;
+  presetMenu.style.top = `${Math.round(rect.bottom - 1)}px`;
+  presetMenu.style.width = `${Math.round(rect.width)}px`;
+  const availableBelow = window.innerHeight - rect.bottom - 10;
+  const availableAbove = rect.top - 10;
+  const naturalMax = 280;
+  if (availableBelow >= 150 || availableBelow >= availableAbove) {
+    presetMenu.style.maxHeight = `${Math.max(120, Math.min(naturalMax, availableBelow))}px`;
+  } else {
+    const height = Math.max(120, Math.min(naturalMax, availableAbove));
+    presetMenu.style.maxHeight = `${height}px`;
+    presetMenu.style.top = `${Math.round(rect.top - height + 1)}px`;
+  }
+  presetMenu.style.overflowY = 'auto';
+}
+presetButton.addEventListener('click', () => {
+  const willOpen = !presetMenu.classList.contains('open');
+  if (willOpen) positionPresetMenu();
+  presetMenu.classList.toggle('open', willOpen);
+  presetButton.setAttribute('aria-expanded', String(willOpen));
+});
+window.addEventListener('resize', () => { if (presetMenu.classList.contains('open')) positionPresetMenu(); });
+window.addEventListener('scroll', () => { if (presetMenu.classList.contains('open')) positionPresetMenu(); }, true);
+presetMenu.addEventListener('click', e => { const option = e.target.closest('.preset-option'); if (!option) return; presetButton.textContent = option.textContent; presetMenu.classList.remove('open'); presetButton.setAttribute('aria-expanded', 'false'); if (option.dataset.value) inputText.value = option.dataset.value; updateSamples(); });
+document.addEventListener('click', e => { if (!e.target.closest('.preset-wrap')) { presetMenu.classList.remove('open'); presetButton.setAttribute('aria-expanded', 'false'); } });
+fontSizeSlider.addEventListener('input', () => { fontSizeLabel.textContent = fontSizeSlider.value; updateSamples(); });
+fontUpload.addEventListener('change', async e => { await loadFiles([...e.target.files]); fontUpload.value = ''; });
+let dragDepth = 0;
+document.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('page-dragover'); });
+document.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+document.addEventListener('dragleave', e => { e.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('page-dragover'); });
+document.addEventListener('drop', async e => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('page-dragover');
+  await loadFiles([...e.dataTransfer.files]);
+});
+
+toggleNamesBtn.addEventListener('click', () => {
+  namesHidden = !namesHidden;
+  toggleNamesBtn.textContent = namesHidden ? 'フォント名を表示' : 'フォント名を非表示';
+  toggleNamesBtn.setAttribute('aria-pressed', String(namesHidden));
+  updateSamples();
+});
+clearBtn.addEventListener('click', () => { fontsData = []; updateSamples(); setStatus('一覧を削除しました。'); });
+
+
+async function loadFiles(files) {
+  const accepted = files.filter(f => /\.(ttf|otf|ttc)$/i.test(f.name));
+  if (!accepted.length) return;
+  let loaded = 0, failed = [];
+  for (const file of accepted) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const metadataName = getFontMetadataName(buffer) || file.name.replace(/\.[^.]+$/, '');
+      const cssName = `LocalFont_${Date.now()}_${fontSerial++}`;
+      const face = new FontFace(cssName, buffer);
+      await face.load();
+      document.fonts.add(face);
+      fontsData.push({ name: metadataName, cssName, originalName: file.name });
+      loaded++;
+    } catch (e) { console.error(file.name, e); failed.push(file.name); }
+  }
+  updateSamples();
+  if (failed.length) alert(`読み込めなかったファイル：${failed.join('、')}`);
+}
+
+
+// SFNTのnameテーブルから日本語名を優先して取得。TTF/OTFに加え、TTCの先頭フォントにも対応。
+function getFontMetadataName(arrayBuffer) {
+  try {
+    const v = new DataView(arrayBuffer);
+    let base = 0;
+    if (readTag(v, 0) === 'ttcf') base = v.getUint32(12, false);
+    const numTables = v.getUint16(base + 4, false);
+    let nameOffset = -1;
+    for (let i = 0; i < numTables; i++) {
+      const p = base + 12 + i * 16;
+      if (readTag(v, p) === 'name') { nameOffset = v.getUint32(p + 8, false); break; }
+    }
+    if (nameOffset < 0) return null;
+    const count = v.getUint16(nameOffset + 2, false);
+    const stringOffset = v.getUint16(nameOffset + 4, false);
+    const candidates = [];
+    for (let i = 0; i < count; i++) {
+      const p = nameOffset + 6 + i * 12;
+      const platform = v.getUint16(p, false), encoding = v.getUint16(p + 2, false), language = v.getUint16(p + 4, false);
+      const nameId = v.getUint16(p + 6, false), length = v.getUint16(p + 8, false), offset = v.getUint16(p + 10, false);
+      if (![1, 4, 6, 16, 17].includes(nameId)) continue;
+      const start = nameOffset + stringOffset + offset;
+      if (start + length > v.byteLength) continue;
+      const text = decodeName(v, start, length, platform, encoding).replace(/\u0000/g, '').trim();
+      if (!text) continue;
+      const idScore = ({16: 50, 4: 45, 1: 40, 17: 20, 6: 10})[nameId] || 0;
+      const langScore = (language === 0x0411 ? 20 : language === 0 ? 8 : 0);
+      const platformScore = (platform === 3 ? 5 : platform === 0 ? 4 : 0);
+      candidates.push({ text, score: idScore + langScore + platformScore });
+    }
+    candidates.sort((a,b) => b.score - a.score);
+    return candidates[0]?.text || null;
+  } catch (e) { console.warn('メタデータ名の取得失敗', e); return null; }
+}
+function readTag(v, p) { return String.fromCharCode(v.getUint8(p),v.getUint8(p+1),v.getUint8(p+2),v.getUint8(p+3)); }
+function decodeName(v, start, length, platform, encoding) {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset + start, length);
+  if (platform === 0 || platform === 3) {
+    try { return new TextDecoder('utf-16be').decode(bytes); }
+    catch { let s=''; for(let i=0;i+1<bytes.length;i+=2) s += String.fromCharCode((bytes[i]<<8)|bytes[i+1]); return s; }
+  }
+  try { return new TextDecoder('macintosh').decode(bytes); } catch { return new TextDecoder('latin1').decode(bytes); }
+}
+
+function updateSamples() {
+  outputArea.innerHTML = '';
+  saveAllBtn.style.display = fontsData.length ? 'inline-block' : 'none';
+  const text = inputText.value, size = `${fontSizeSlider.value}px`;
+  fontsData.forEach((font, index) => {
+    const block = document.createElement('div'); block.className = `font-block${namesHidden ? ' name-hidden' : ''}`;
+    const header = document.createElement('div'); header.className = `font-header${namesHidden ? ' name-hidden' : ''}`;
+    if (!namesHidden) {
+      const name = document.createElement('div'); name.className = 'font-name';
+      name.textContent = font.name; name.title = `元ファイル：${font.originalName}`; header.appendChild(name);
+    }
+    const controls = document.createElement('div'); controls.className = 'font-controls no-capture';
+    const save = document.createElement('button'); save.className = 'mini-btn btn-save'; save.textContent = '保存'; save.title = 'この見本だけ画像保存';
+    save.addEventListener('click', () => saveBlockAsImage(block, font.name));
+    const remove = document.createElement('button'); remove.className = 'mini-btn btn-remove'; remove.textContent = '×'; remove.title = 'このフォントを一覧から削除';
+    remove.addEventListener('click', () => { fontsData.splice(index, 1); updateSamples(); });
+    controls.append(save, remove); header.appendChild(controls);
+    const floating = document.createElement('div'); floating.className = 'floating-controls no-capture';
+    const floatingSave = save.cloneNode(true); floatingSave.textContent = '保存'; floatingSave.addEventListener('click', () => saveBlockAsImage(block, font.name));
+    const floatingRemove = remove.cloneNode(true); floatingRemove.textContent = '×'; floatingRemove.addEventListener('click', () => { fontsData.splice(index, 1); updateSamples(); });
+    floating.append(floatingSave, floatingRemove); block.appendChild(floating);
+    const sample = document.createElement('div'); sample.className = 'font-sample'; sample.style.fontFamily = `"${font.cssName}"`; sample.style.fontSize = size; sample.textContent = text;
+    block.append(header, sample); outputArea.appendChild(block);
+  });
+}
+
+saveAllBtn.addEventListener('click', async () => {
+  if (!fontsData.length) return;
+  await captureAndDownload(outputArea, 'font_compare_list.png', '#f7f7f7', saveAllBtn);
+});
+async function saveBlockAsImage(element, fileName) {
+  const safe = fileName.replace(/[\\/:*?"<>|]/g, '_');
+  await captureAndDownload(element, `${safe}.png`, '#fff');
+}
+async function captureAndDownload(element, fileName, backgroundColor, button) {
+  const original = button?.textContent;
+  try {
+    if (button) { button.textContent = '画像生成中…'; button.disabled = true; }
+    const canvas = await html2canvas(element, { ignoreElements: el => el.classList.contains('no-capture'), backgroundColor, scale: 2 });
+    const link = document.createElement('a'); link.download = fileName; link.href = canvas.toDataURL('image/png'); link.click();
+  } catch (e) { console.error(e); alert('画像の生成に失敗しました。'); }
+  finally { if (button) { button.textContent = original; button.disabled = false; } }
+}
+</script>
+</body>
+</html>
